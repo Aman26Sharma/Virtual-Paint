@@ -4,24 +4,20 @@ import cv2 as cv
 import numpy as np
 from collections import deque
 
-lower_red = np.array([100, 60, 60])
-upper_red = np.array([140, 255, 255])
+lower_blue = np.array([100, 60, 60])
+upper_blue = np.array([140, 255, 255])
 
 
 # Initialize deques to store different colors in different arrays
-bpoints = [deque(maxlen=512)]
-gpoints = [deque(maxlen=512)]
-rpoints = [deque(maxlen=512)]
-ypoints = [deque(maxlen=512)]
-
-# Initialize an index variable for each of the colors 
+bpoints = [deque(maxlen=1024)]
+gpoints = [deque(maxlen=1024)]
+rpoints = [deque(maxlen=1024)]
+ypoints = [deque(maxlen=1024)]
 bindex = 0
 gindex = 0
 rindex = 0
 yindex = 0
 
-# Just a handy array and an index variable to get the color-of-interest on the go
-# Blue, Green, Red, Yellow respectively
 colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (0, 255, 255)] 
 colorIndex = 0
 
@@ -51,12 +47,12 @@ while True:
     _ , frame = capture.read() # Reading video frame by frame
     flipped = cv.flip(frame, 1) # Flipping the frame horizontally
     #cv.imshow('Webcam', flipped)
-    blur = cv.medianBlur(flipped, 5)
+    blur = cv.medianBlur(flipped, 5) # Blurring image for smoothing
     hsv = cv.cvtColor(blur, cv.COLOR_BGR2HSV) # HSV is useful when we need to detect something based on its color
     #cv.imshow('HSV', hsv)
     
-    kernel = np.ones((1, 1), np.uint8)
-    mask = cv.inRange(hsv, lower_red, upper_red)
+    kernel = np.ones((7, 7), np.uint8)
+    mask = cv.inRange(hsv, lower_blue, upper_blue)
     
     # Morphological Image Processing (For removing noise)
     mask = cv.erode(mask, kernel, iterations=2)
@@ -76,15 +72,14 @@ while True:
            (x,y), radius = cv.minEnclosingCircle(contours)
            cv.circle(flipped, (int(x),int(y)), int(radius), (0,255,255), 2)
            M = cv.moments(contours)
-           if M['m00'] != 0:
-               center = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
+           center = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
            
            if center[1]<65:
                if 40 <= center[0] <= 140: # Clear All
-                   bpoints = [deque(maxlen=512)]
-                   gpoints = [deque(maxlen=512)]
-                   rpoints = [deque(maxlen=512)]
-                   ypoints = [deque(maxlen=512)]
+                   bpoints = [deque(maxlen=1024)]
+                   gpoints = [deque(maxlen=1024)]
+                   rpoints = [deque(maxlen=1024)]
+                   ypoints = [deque(maxlen=1024)]
                    bindex = 0
                    gindex = 0
                    rindex = 0
@@ -100,22 +95,32 @@ while True:
                    colorIndex = 3
            else:
                if colorIndex == 0:
-                   bpoints[0].appendleft(center)
+                   bpoints[bindex].appendleft(center)
                if colorIndex == 1:
-                   gpoints[0].appendleft(center)
+                   gpoints[gindex].appendleft(center)
                if colorIndex == 2:
-                   rpoints[0].appendleft(center)
+                   rpoints[rindex].appendleft(center)
                if colorIndex == 3:
-                   ypoints[0].appendleft(center)
-           
-           points = [bpoints, gpoints, rpoints, ypoints]
-           for i in range(len(points)):
-               for j in range(len(points[i])):
-                   for k in range(1, len(points[i][j])):
-                       if points[i][j][k-1] is None or points[i][j][k] is None:
-                           continue
-                       cv.line(flipped, points[i][j][k-1], points[i][j][k], colors[i], 2)
-                       cv.line(paintWindow, points[i][j][k-1], points[i][j][k], colors[i], 2)
+                   ypoints[yindex].appendleft(center)
+    
+    else:
+        bpoints.append(deque(maxlen=1024))
+        bindex += 1
+        gpoints.append(deque(maxlen=1024))
+        gindex += 1
+        rpoints.append(deque(maxlen=1024))
+        rindex += 1
+        ypoints.append(deque(maxlen=1024))
+        yindex += 1
+        
+    points = [bpoints, gpoints, rpoints, ypoints]
+    for i in range(len(points)):
+        for j in range(len(points[i])):
+            for k in range(1, len(points[i][j])):
+                if points[i][j][k-1] is None or points[i][j][k] is None:
+                    continue
+                cv.line(flipped, points[i][j][k-1], points[i][j][k], colors[i], 2)
+                cv.line(paintWindow, points[i][j][k-1], points[i][j][k], colors[i], 2)
                        
     flipped = cv.rectangle(flipped, (40,1), (140,65), (0,0,0), 2)
     flipped = cv.rectangle(flipped, (160,1), (255,65), colors[0], -1)
@@ -128,7 +133,7 @@ while True:
     cv.putText(flipped, "RED", (420, 33), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv.LINE_AA)
     cv.putText(flipped, "YELLOW", (520, 33), cv.FONT_HERSHEY_SIMPLEX, 0.5, (150,150,150), 2, cv.LINE_AA)                 
     
-    cv.imshow('With Circle', flipped)
+    cv.imshow('Webcam', flipped)
     cv.imshow('Paint', paintWindow)
     
     if cv.waitKey(20) & 0xFF==ord('q'):
